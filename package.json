@@ -7,8 +7,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "test": "npm run build --silent && node --test dist/tests/exchange.test.js dist/tests/manifest.test.js",
-    "test:manifest": "npm run build --silent && node --test dist/tests/manifest.test.js"
+    "test": "npm run build --silent && node --test dist/tests/exchange.test.js dist/tests/manifest.test.js dist/tests/billing.test.js",
+    "test:manifest": "npm run build --silent && node --test dist/tests/manifest.test.js",
+    "bill": "npm run build --silent && node dist/src/billing/cli.js"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
