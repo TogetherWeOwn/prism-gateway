@@ -5,7 +5,7 @@ on:
     branches: [main]
 jobs:
   lab:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     env:
       NODE_ENV: development
     steps:
