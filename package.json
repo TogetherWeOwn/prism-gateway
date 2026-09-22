@@ -1,0 +1,20 @@
+{
+  "name": "prism-gateway-lab",
+  "version": "0.0.0-phase0",
+  "license": "MIT",
+  "description": "Prism Gateway Phase-0 executable compatibility lab (offline, no production).",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "npm run build --silent && node --test dist/tests/exchange.test.js dist/tests/manifest.test.js",
+    "test:manifest": "npm run build --silent && node --test dist/tests/manifest.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "typescript": "^5.6.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
