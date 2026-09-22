@@ -5,7 +5,7 @@ on:
     branches: [main]
 jobs:
   lab:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, two-isolated]
     env:
       NODE_ENV: development
     steps:
