@@ -32,8 +32,8 @@ export const RATE_SOURCES: Record<string, RateSource> = {
   },
   queues: {
     url: "https://developers.cloudflare.com/queues/platform/pricing/",
-    transcribed: "2026-09-22",
-    note: "1M ops incl.; overage $0.40/M ops. Billed per 64 KB chunk incl. metadata; standard ops = write + read + delete.",
+    transcribed: "2026-09-24",
+    note: "Paid: 1M ops/mo incl., $0.40/M after. 64 KB = 64000 B chunks incl. ~100 B metadata; standard delivery = write + read + delete; each retry adds one read; DLQ transfer adds one write; expired-unread bills write + delete only.",
   },
   d1: {
     url: "https://developers.cloudflare.com/d1/platform/pricing/",
@@ -41,9 +41,9 @@ export const RATE_SOURCES: Record<string, RateSource> = {
     note: "25B rows read / 50M rows written / 5 GB-mo incl.; overage $0.001/M reads, $1/M writes, $0.75/GB-mo.",
   },
   r2: {
-    url: "https://developers.cloudflare.com/r2/platform/pricing/",
-    transcribed: "2026-09-22",
-    note: "10 GB-mo incl.; overage $0.015/GB-mo. Standard Class A $4.50/M ops, Class B $0.36/M ops.",
+    url: "https://developers.cloudflare.com/r2/pricing/",
+    transcribed: "2026-09-24",
+    note: "Standard class only: 10 GB-mo + 1M Class A + 10M Class B ops/mo incl.; overage $0.015/GB-mo, $4.50/M A, $0.36/M B. Usage rounds UP to whole GB / whole millions of ops. Deletes free. No allowance for Infrequent Access.",
   },
 };
 
@@ -78,6 +78,9 @@ export const TARIFF = {
   d1GbMonthOverage: 0.75,
   r2GbMonthsIncluded: 10,
   r2GbMonthOverage: 0.015,
+  /** Standard-class monthly operation allowances (no allowance for Infrequent Access). */
+  r2ClassAIncluded: 1_000_000,
+  r2ClassBIncluded: 10_000_000,
   r2ClassAOveragePerM: 4.5,
   r2ClassBOveragePerM: 0.36,
 } as const;
