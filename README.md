@@ -33,6 +33,20 @@ if your environment defaults to production).
   domain, tax) at 1x/3x/10x on pinned synthetic inputs. Unknown inputs
   throw instead of defaulting to zero; upstream inference is excluded.
 
+## CI
+
+The `phase0-lab-ci` workflow runs `changes`, `lab`, `secret-scan` and `ci-ok`.
+`ci-ok` is the single check to require on `main`.
+
+- A PR that only touches markdown, `docs/`, `LICENSE` or `NOTICE` skips `lab`
+  (typecheck, build, tests); `ci-ok` still reports green.
+- Any other change runs the full lab, including `package.json`,
+  `package-lock.json`, `tsconfig.json`, `src/`, `tests/`, `config/` and
+  `.github/**`.
+- Pushes to `main`, a nightly schedule and manual dispatch always run
+  everything.
+- `secret-scan` (gitleaks, pinned and checksum-verified) runs on every event.
+
 ## Non-goals
 
 Live provider inference, OAuth flows, Cloudflare deployment, paid
