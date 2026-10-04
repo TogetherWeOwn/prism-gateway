@@ -1,10 +1,83 @@
 name: phase0-lab-ci
+
+# CI standard: run only what the change affects, plus a full run on main and nightly.
+#
+#   changes      native `git diff --name-only` against the merge base; no third-party action.
+#   lab          typecheck + build + tests. Gated at job level on `changes.outputs.code`.
+#   secret-scan  gitleaks, pinned and checksum-verified. Always runs.
+#   ci-ok        the one aggregator branch protection should require (plus pr-lint). A skipped
+#                job counts as success here, so a docs-only PR can never block on a skipped check.
+#
+# This repo has a single code area, so the only skip is docs-only. A PR is docs-only when every
+# changed file is markdown, under docs/, or LICENSE/NOTICE, and nothing under .github/ changed.
+# Everything else runs the full lab: package.json and package-lock.json (dependencies),
+# tsconfig.json (build config), src/, tests/, config/ and .github/** (this filter included).
+# Pushes to main, the nightly schedule and manual dispatch always run everything.
+#
+# Never add `paths:` or `paths-ignore:` to the triggers below. A workflow that is skipped at the
+# trigger level never reports `ci-ok`, and a required check that never reports blocks the merge.
+
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    name: Change detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.detect.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "non-PR event ($EVENT): full run"
+            exit 0
+          fi
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          files="$(git -c core.quotePath=false diff --name-only --no-renames "$merge_base" "$HEAD_SHA")"
+          echo "changed files:"
+          echo "$files"
+          code=false
+          if [ -z "$files" ]; then
+            code=true
+          else
+            while IFS= read -r f; do
+              case "$f" in
+                .github/*) code=true ;;
+                *.md | docs/* | LICENSE | NOTICE) ;;
+                *) code=true ;;
+              esac
+            done <<< "$files"
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "code=$code"
+
   lab:
+    name: lab
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
       NODE_ENV: development
@@ -17,3 +90,57 @@ jobs:
       - run: npm ci || npm install
       - run: npm run typecheck
       - run: npm test
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tgz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+      - name: Scan history for secrets
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/gitleaks" detect --source . --no-banner --redact --exit-code 1
+
+  ci-ok:
+    name: ci-ok
+    needs: [changes, lab, secret-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Aggregate gated results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          set -euo pipefail
+          echo "needed job results: $RESULTS"
+          # Change detection must really have run: if it was skipped, every gated job below
+          # would be skipped too and the aggregate would pass without testing anything.
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "::error::change detection ended '$CHANGES_RESULT'"
+            exit 1
+          fi
+          for r in $RESULTS; do
+            case "$r" in
+              success | skipped) ;;
+              *)
+                echo "::error::a needed job ended '$r'"
+                exit 1
+                ;;
+            esac
+          done
+          echo "ci-ok: every needed job succeeded or was skipped"
